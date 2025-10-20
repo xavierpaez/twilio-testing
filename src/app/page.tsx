@@ -48,7 +48,8 @@ export default function Home() {
         {passwordVerified ? (
           <>
             <p className="text-sm text-gray-600 mb-6">
-              Enter two numbers. We’ll call A, then bridge to B.
+              Enter two numbers. We’ll call A, then bridge to B. <br /> Please
+              use the following format (e.g., +12125551234).
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
