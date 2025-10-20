@@ -28,8 +28,10 @@ export default function Home() {
       );
       setPhoneA("");
       setPhoneB("");
-    } catch (err: any) {
-      setMsg(err.message || "Something went wrong.");
+    } catch (err) {
+      if (err instanceof Error) {
+        setMsg(err.message || "Something went wrong.");
+      }
     } finally {
       setLoading(false);
     }
