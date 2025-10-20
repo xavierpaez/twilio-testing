@@ -44,8 +44,7 @@ export default function Home() {
           Click-to-Call
         </h1>
         <p className="text-sm text-gray-600 mb-6">
-          Enter two numbers in E.164 format (e.g. +12125551234). We’ll call A,
-          then bridge to B.
+          Enter two numbers. We’ll call A, then bridge to B.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
