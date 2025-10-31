@@ -24,7 +24,11 @@ function corsResponse(body: JsonBody, status = 200): NextResponse {
 
 export async function OPTIONS(req: Request) {
   const origin = req.headers.get("origin") || "";
-  if (origin.endsWith(".mskcc.org") || origin === "https://mskcc.org") {
+  if (
+    origin.endsWith(".mskcc.org") ||
+    origin === "https://mskcc.org" ||
+    origin === "http://localhost:3000"
+  ) {
     const res = new Response(null, { status: 204 });
     res.headers.set("Access-Control-Allow-Origin", origin);
     res.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
