@@ -5,10 +5,16 @@ export const runtime = "nodejs";
 
 const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_CALLER_ID } = process.env;
 
-type JsonBody = Record<
-  string,
-  string | number | boolean | null | JsonBody[] | { [k: string]: any }
->;
+// ✅ Fully recursive JSON-safe type (no `any`)
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+type JsonBody = Record<string, JsonValue>;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*", // browsers: allow any origin
@@ -29,9 +35,7 @@ export async function OPTIONS() {
 
 export async function POST(req: Request) {
   try {
-    // If there's an Origin, it's a browser -> CORS applies.
-    // If there's NO Origin (Postman/cURL/server), allow it.
-    const origin = req.headers.get("origin"); // may be null for Postman
+    const origin = req.headers.get("origin");
     const isBrowser = !!origin;
 
     if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_CALLER_ID) {
@@ -66,12 +70,13 @@ export async function POST(req: Request) {
       twiml,
     });
 
-    // Attach CORS for browsers; Postman doesn't need it but it's harmless.
     const res = NextResponse.json({ ok: true, sid: call.sid });
     Object.entries(CORS_HEADERS).forEach(([k, v]) => res.headers.set(k, v));
     if (isBrowser) res.headers.set("Vary", "Origin");
     return res;
   } catch (err) {
-    return withCors({ error: "Internal Server Error" }, 500);
+    const message =
+      err instanceof Error ? err.message : JSON.stringify(err, null, 2);
+    return withCors({ error: "Internal Server Error", detail: message }, 500);
   }
 }
