@@ -1,56 +1,41 @@
 import { NextResponse } from "next/server";
 import twilio from "twilio";
 
+export const runtime = "nodejs";
+
 const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_CALLER_ID } = process.env;
 
-// ✅ Define a type for the response body instead of `any`
-type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | { [key: string]: JsonValue };
-type JsonBody = Record<string, JsonValue>;
+type JsonBody = Record<
+  string,
+  string | number | boolean | null | JsonBody[] | { [k: string]: any }
+>;
 
-// ✅ Helper for JSON + CORS
-function corsResponse(body: JsonBody, status = 200): NextResponse {
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*", // browsers: allow any origin
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Max-Age": "86400",
+} as const;
+
+function withCors(body: JsonBody, status = 200) {
   const res = NextResponse.json(body, { status });
-  res.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.headers.set("Access-Control-Allow-Headers", "Content-Type");
-  res.headers.set("Access-Control-Allow-Origin", "*");
+  Object.entries(CORS_HEADERS).forEach(([k, v]) => res.headers.set(k, v));
   return res;
 }
 
-export async function OPTIONS(req: Request) {
-  const origin = req.headers.get("origin") || "";
-  if (
-    origin.endsWith(".mskcc.org") ||
-    origin === "https://mskcc.org" ||
-    origin === "http://localhost:3000"
-  ) {
-    const res = new Response(null, { status: 204 });
-    res.headers.set("Access-Control-Allow-Origin", origin);
-    res.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.headers.set("Access-Control-Allow-Headers", "Content-Type");
-    res.headers.set("Access-Control-Max-Age", "86400");
-    return res;
-  }
-  return new Response("Forbidden", { status: 403 });
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
 }
 
 export async function POST(req: Request) {
   try {
-    const origin = req.headers.get("origin") || "";
-    const allowed =
-      origin.endsWith(".mskcc.org") || origin === "https://mskcc.org";
-
-    if (!allowed) {
-      return corsResponse({ error: "Forbidden" }, 403);
-    }
+    // If there's an Origin, it's a browser -> CORS applies.
+    // If there's NO Origin (Postman/cURL/server), allow it.
+    const origin = req.headers.get("origin"); // may be null for Postman
+    const isBrowser = !!origin;
 
     if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_CALLER_ID) {
-      return corsResponse({ error: "Missing Twilio env vars." }, 500);
+      return withCors({ error: "Missing Twilio env vars." }, 500);
     }
 
     const { phoneA, phoneB } = (await req.json()) as {
@@ -60,13 +45,14 @@ export async function POST(req: Request) {
 
     const e164 = /^\+\d{7,15}$/;
     if (!e164.test(phoneA) || !e164.test(phoneB)) {
-      return corsResponse(
+      return withCors(
         { error: "Numbers must be in E.164 (e.g., +12125551234)." },
         400
       );
     }
 
     const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+
     const twiml = `
       <Response>
         <Say voice="alice">Connecting you now. Please hold.</Say>
@@ -80,11 +66,12 @@ export async function POST(req: Request) {
       twiml,
     });
 
+    // Attach CORS for browsers; Postman doesn't need it but it's harmless.
     const res = NextResponse.json({ ok: true, sid: call.sid });
-    res.headers.set("Access-Control-Allow-Origin", origin);
+    Object.entries(CORS_HEADERS).forEach(([k, v]) => res.headers.set(k, v));
+    if (isBrowser) res.headers.set("Vary", "Origin");
     return res;
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    return corsResponse({ error: msg }, 500);
+    return withCors({ error: "Internal Server Error" }, 500);
   }
 }
